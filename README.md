@@ -113,9 +113,11 @@ You can Deploy and verify your strategies if PRIV_KEY and ETHERSCAN_API_KEY are 
 make deploy
 ```
 
-Before deploying, update the constructor-args variable within the Makefile to include any parameters applicable. Make sure to seperate each argument only by a space, no commas.
+Before deploying, update the constructor-args variable within the Makefile to include any parameters applicable. 
+Make sure to seperate each argument only by a space, no commas.
 
-The deploy script is coded to deploy the "Strategy" contract within the Strategy.sol file. This can be updated by simply updating to src/YourContract.sol:YourContract.
+The deploy script is coded to deploy the "Strategy" contract within the Strategy.sol file. 
+This can be updated by simply updating to src/YourContract.sol:YourContract.
 
 # Resources
 
