@@ -25,3 +25,5 @@ trace-local  :; forge test -vvv
 clean  :; forge clean
 snapshot :; forge snapshot
 debug	:; forge test --debug "testBasicShutdown" --fork-url ${FORK_URL}
+test-fork-number	:; forge test -vv --fork-url ${ALCHEMY_RPC_URL} --etherscan-api-key ${ETHERSCAN_API_KEY} --fork-block-number 15265100
+trace-fork-number	:; forge test -vvv --fork-url ${ALCHEMY_RPC_URL} --etherscan-api-key ${ETHERSCAN_API_KEY} --fork-block-number 15265100

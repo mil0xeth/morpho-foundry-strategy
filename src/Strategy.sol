@@ -14,6 +14,7 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./interfaces/IMorpho.sol";
 import "./interfaces/ILens.sol";
+import "./interfaces/IUniswapV2Router02.sol";
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -26,7 +27,16 @@ contract Strategy is BaseStrategy {
     // MM_WANT = Morpho Market for want token
     address public constant MM_WANT =
         0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643;
+    address public constant COMP = 0xc00e94Cb662C3520282E6f5717214004A7f26888;
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    IUniswapV2Router02 private constant UNI_V2_ROUTER =
+        IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    IUniswapV2Router02 private constant SUSHI_V2_ROUTER =
+        IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+
+    IUniswapV2Router02 public currentV2Router;
     uint256 public maxGasForMatching = 100000;
+    uint256 public minCompToSell = 0.1 ether; // minimum amount of COMP to be sold
 
     constructor(address _vault) BaseStrategy(_vault) {
         // You can set these parameters on deployment to whatever you want
@@ -34,6 +44,10 @@ contract Strategy is BaseStrategy {
         // profitFactor = 100;
         // debtThreshold = 0;
         want.safeApprove(address(MORPHO), type(uint256).max);
+        currentV2Router = SUSHI_V2_ROUTER;
+        IERC20 comp = IERC20(COMP);
+        comp.safeApprove(address(SUSHI_V2_ROUTER), type(uint256).max);
+        comp.safeApprove(address(UNI_V2_ROUTER), type(uint256).max);
     }
 
     // ******** OVERRIDE THESE METHODS FROM BASE CONTRACT ************
@@ -55,7 +69,8 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        // TODO: maybe call harvestRewards()
+        claimComp();
+        sellComp();
 
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
         uint256 totalAssetsAfterProfit = estimatedTotalAssets();
@@ -64,10 +79,7 @@ contract Strategy is BaseStrategy {
             : 0;
 
         if (_debtOutstanding > 0) {
-            // NOTE: Should try to free up at least `_debtOutstanding` of underlying position
             (_debtPayment, _loss) = liquidatePosition(_debtOutstanding);
-            // _debtPayment = Math.min(_debtOutstanding, balanceOfMMWant());
-            // MORPHO.withdraw(MM_WANT, _debtPayment);
         }
         // Net profit and loss calculation
         if (_loss > _profit) {
@@ -118,14 +130,14 @@ contract Strategy is BaseStrategy {
         if (balanceToWithdraw > 0) {
             MORPHO.withdraw(MM_WANT, balanceToWithdraw);
         }
-        // TODO: maybe call harvestRewards()
         return want.balanceOf(address(this));
     }
 
     // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
     function prepareMigration(address _newStrategy) internal override {
-        // TODO: call harvestRewards() and swap rewards or send them to new strategy
         liquidateAllPositions();
+        claimComp();
+        sellComp();
     }
 
     function protectedTokens()
@@ -166,13 +178,33 @@ contract Strategy is BaseStrategy {
     /**
      * @notice
      *  Set the maximum amount of gas to consume to get matched in peer-to-peer.
+     * @dev
+     *  This value is needed in morpho supply liquidity calls.
      * @param _maxGasForMatching new gas value in
      */
     function setMaxGasForMatching(uint256 _maxGasForMatching)
         external
-        onlyStrategist
+        onlyAuthorized
     {
         maxGasForMatching = _maxGasForMatching;
+    }
+
+    /**
+     * @notice
+     *  Set toggle v2 swap router between sushiv2 and univ2
+     */
+    function setToggleV2Router() external onlyAuthorized {
+        currentV2Router = currentV2Router == SUSHI_V2_ROUTER
+            ? UNI_V2_ROUTER
+            : SUSHI_V2_ROUTER;
+    }
+
+    /**
+     * @notice
+     *  Set the minimum amount of compount token need to claim or sell it for `want` token.
+     */
+    function setMinCompToSell(uint256 _minCompToSell) external onlyAuthorized {
+        minCompToSell = _minCompToSell;
     }
 
     /**
@@ -185,5 +217,48 @@ contract Strategy is BaseStrategy {
             MM_WANT,
             address(this)
         );
+    }
+
+    function claimComp() internal {
+        address[] memory pools = new address[](1);
+        pools[0] = MM_WANT;
+        if (
+            LENS.getUserUnclaimedRewards(pools, address(this)) > minCompToSell
+        ) {
+            // claim the underlying pool's rewards, currently COMP token
+            MORPHO.claimRewards(pools, false);
+        }
+    }
+
+    //sell comp function
+    // see https://etherscan.io/address/0x62EA2aCe7a7861394f4A38B84D119498DBBb022c#code for different swaps
+    function sellComp() internal {
+        uint256 compBalance = IERC20(COMP).balanceOf(address(this));
+        if (compBalance > minCompToSell) {
+            currentV2Router.swapExactTokensForTokens(
+                compBalance,
+                0,
+                getTokenOutPathV2(COMP, address(want)),
+                address(this),
+                block.timestamp
+            );
+        }
+    }
+
+    function getTokenOutPathV2(address _tokenIn, address _tokenOut)
+        internal
+        pure
+        returns (address[] memory _path)
+    {
+        bool isWeth = _tokenIn == address(WETH) || _tokenOut == address(WETH);
+        _path = new address[](isWeth ? 2 : 3);
+        _path[0] = _tokenIn;
+
+        if (isWeth) {
+            _path[1] = _tokenOut;
+        } else {
+            _path[1] = address(WETH);
+            _path[2] = _tokenOut;
+        }
     }
 }
