@@ -52,8 +52,9 @@ contract Strategy is BaseStrategy {
         want.safeApprove(address(MORPHO), type(uint256).max);
         currentV2Router = SUSHI_V2_ROUTER;
         IERC20 comp = IERC20(COMP);
-        comp.safeApprove(address(SUSHI_V2_ROUTER), type(uint256).max);
-        comp.safeApprove(address(UNI_V2_ROUTER), type(uint256).max);
+        // COMP max allowance is uint96
+        comp.safeApprove(address(SUSHI_V2_ROUTER), type(uint96).max);
+        comp.safeApprove(address(UNI_V2_ROUTER), type(uint96).max);
     }
 
     // ******** BaseStrategy overriden contract function ************

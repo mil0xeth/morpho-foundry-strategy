@@ -75,8 +75,8 @@ contract StrategyShutdownTest is StrategyFixture {
         strategy.harvest(); // Remove funds from strategy
 
         assertEq(want.balanceOf(address(strategy)), 0);
+        // NOTE: May want to tweak this based on potential loss during migration
         // assertGe(want.balanceOf(address(vault)), _amount); // The vault has all funds
         assertRelApproxEq(want.balanceOf(address(vault)), _amount, DELTA); // The vault has all funds
-        // NOTE: May want to tweak this based on potential loss during migration
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.12;
 import "forge-std/console.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {StrategyFixture} from "./utils/StrategyFixture.sol";
 import {StrategyParams} from "../interfaces/Vault.sol";
@@ -19,11 +20,36 @@ contract StrategyOperationsTest is StrategyFixture {
         assertEq(vault.depositLimit(), type(uint256).max);
     }
 
-    // TODO: add additional check on strat params
     function testSetupStrategyOK() public {
         console.log("address of strategy", address(strategy));
         assertTrue(address(0) != address(strategy));
         assertEq(address(strategy.vault()), address(vault));
+        // assert allowance of want token to morpho protocol
+        assertEq(
+            want.allowance(address(strategy), address(strategy.MORPHO())),
+            type(uint256).max
+        );
+        // assert that the defualt router is sushi
+        assertEq(
+            address(strategy.currentV2Router()),
+            address(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F)
+        );
+        // assert allowance for comp to Sushi v2
+        assertEq(
+            IERC20(strategy.COMP()).allowance(
+                address(strategy),
+                address(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F)
+            ),
+            type(uint96).max
+        );
+        // assert allowance for comp to Uni v2
+        assertEq(
+            IERC20(strategy.COMP()).allowance(
+                address(strategy),
+                address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D)
+            ),
+            type(uint96).max
+        );
     }
 
     /// Test Operations
@@ -95,7 +121,11 @@ contract StrategyOperationsTest is StrategyFixture {
         strategy.harvest();
         assertRelApproxEq(strategy.estimatedTotalAssets(), _amount, DELTA);
 
-        // TODO: Add some code before harvest #2 to simulate earning yield
+        // Add some code before harvest #2 to simulate earning yield
+        // Strategy earned some reward tokens
+        // uint256 rewardAmount = _amount;
+        vm.assume(_amount > strategy.minCompToClaimOrSell());
+        deal(address(strategy.COMP()), address(strategy), _amount);
 
         // Harvest 2: Realize profit
         skip(1);
@@ -103,10 +133,9 @@ contract StrategyOperationsTest is StrategyFixture {
         strategy.harvest();
         skip(6 hours);
 
-        // TODO: Uncomment the lines below
-        // uint256 profit = want.balanceOf(address(vault));
-        // assertGt(want.balanceOf(address(strategy)) + profit, _amount);
-        // assertGt(vault.pricePerShare(), beforePps)
+        uint256 profit = want.balanceOf(address(vault));
+        assertGt(want.balanceOf(address(strategy)) + profit, _amount);
+        assertGt(vault.pricePerShare(), beforePps);
     }
 
     function testChangeDebt(uint256 _amount) public {
@@ -134,13 +163,12 @@ contract StrategyOperationsTest is StrategyFixture {
         assertRelApproxEq(strategy.estimatedTotalAssets(), _amount, DELTA);
 
         // In order to pass these tests, you will need to implement prepareReturn.
-        // TODO: uncomment the following lines.
-        // vm.prank(gov);
-        // vault.updateStrategyDebtRatio(address(strategy), 5_000);
-        // skip(1);
-        // vm.prank(strategist);
-        // strategy.harvest();
-        // assertRelApproxEq(strategy.estimatedTotalAssets(), half, DELTA);
+        vm.prank(gov);
+        vault.updateStrategyDebtRatio(address(strategy), 5_000);
+        skip(1);
+        vm.prank(strategist);
+        strategy.harvest();
+        assertRelApproxEq(strategy.estimatedTotalAssets(), half, DELTA);
     }
 
     function testProfitableHarvestOnDebtChange(uint256 _amount) public {
@@ -167,32 +195,20 @@ contract StrategyOperationsTest is StrategyFixture {
         vm.prank(gov);
         vault.updateStrategyDebtRatio(address(strategy), 5_000);
 
-        // In order to pass these tests, you will need to implement prepareReturn.
-        // TODO: uncomment the following lines.
-        /*
         // Harvest 2: Realize profit
         skip(1);
         vm.prank(strategist);
         strategy.harvest();
         //Make sure we have updated the debt ratio of the strategy
-        assertRelApproxEq(
-            strategy.estimatedTotalAssets(), 
-            _amount / 2, 
-            DELTA
-        );
+        assertRelApproxEq(strategy.estimatedTotalAssets(), _amount / 2, DELTA);
         skip(6 hours);
 
         //Make sure we have updated the debt and made a profit
         uint256 vaultBalance = want.balanceOf(address(vault));
         StrategyParams memory params = vault.strategies(address(strategy));
         //Make sure we got back profit + half the deposit
-        assertRelApproxEq(
-            _amount / 2 + params.totalGain, 
-            vaultBalance, 
-            DELTA
-        );
+        assertRelApproxEq(_amount / 2 + params.totalGain, vaultBalance, DELTA);
         assertGe(vault.pricePerShare(), beforePps);
-        */
     }
 
     function testSweep(uint256 _amount) public {
