@@ -4,6 +4,10 @@
 
 This repo contains a strategy for Morpho protocol on Ethereum mainnet.
 
+### Possible Improvements
+
+- Add Uniswap V3 for swapping reward `COMP` tokens for `want` tokens. For reference see [strategy](https://etherscan.io/address/0x62EA2aCe7a7861394f4A38B84D119498DBBb022c#code)
+
 ## What you'll find here
 
 - Basic Solidity Smart Contract for creating your own Yearn Strategy ([`Strategy.sol`](src/Strategy.sol))
