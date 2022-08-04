@@ -32,5 +32,6 @@ contract StrategyMigrationTest is StrategyFixture {
         vm.prank(gov);
         vault.migrateStrategy(address(strategy), address(newStrategy));
         assertRelApproxEq(newStrategy.estimatedTotalAssets(), _amount, DELTA);
+        assertEq(strategy.estimatedTotalAssets(), 0);
     }
 }
