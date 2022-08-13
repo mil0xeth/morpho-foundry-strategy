@@ -122,10 +122,27 @@ contract StrategyOperationsTest is StrategyFixture {
         assertRelApproxEq(strategy.estimatedTotalAssets(), _amount, DELTA);
 
         // Add some code before harvest #2 to simulate earning yield
-        // Strategy earned some reward tokens
-        // uint256 rewardAmount = _amount;
-        vm.assume(_amount > strategy.minCompToClaimOrSell());
-        deal(address(strategy.COMP()), address(strategy), _amount);
+        // Strategy earned some reward tokens, param amount is adjusted to comp token decimals
+        uint256 compAmount = _amount * 10**(18 - vault.decimals());
+        vm.assume(compAmount > strategy.minCompToClaimOrSell());
+        deal(address(strategy.COMP()), address(strategy), compAmount);
+
+        // TODO: trigger tradefactory to swap reward tokens to want tokens.
+
+        // try to trigger the async trade
+        // ITradeFactory.AsyncTradeExecutionDetails memory ated = ITradeFactory.AsyncTradeExecutionDetails(
+        //     address(strategy),
+        //     address(strategy.COMP()),
+        //     address(want),
+        //     compAmount,
+        //     1
+        // );
+        // address[] memory path = new address[](3);
+        // path[0] = strategy.COMP();
+        // path[1] = address(weth);
+        // path[2] = address(want);
+        // tradeFactory.execute(ated, 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F, "");
+        // vm.stopPrank();
 
         // Harvest 2: Realize profit
         skip(1);
@@ -134,6 +151,11 @@ contract StrategyOperationsTest is StrategyFixture {
         skip(6 hours);
 
         uint256 profit = want.balanceOf(address(vault));
+        emit log_named_uint("profit: ", profit);
+        emit log_named_uint("strategy: ", want.balanceOf(address(strategy)));
+        emit log_named_uint("amount: ", _amount);
+        emit log_named_uint("price per share old: ", beforePps);
+        emit log_named_uint("price per share new: ", vault.pricePerShare());
         assertGt(want.balanceOf(address(strategy)) + profit, _amount);
         assertGt(vault.pricePerShare(), beforePps);
     }
