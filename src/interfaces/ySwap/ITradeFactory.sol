@@ -9,4 +9,32 @@ interface ITradeFactory {
     function grantRole(bytes32 role, address account) external;
 
     function STRATEGY() external view returns (bytes32);
+
+    struct SyncTradeExecutionDetails {
+        address _tokenIn;
+        address _tokenOut;
+        uint256 _amountIn;
+        uint256 _maxSlippage;
+    }
+
+    struct AsyncTradeExecutionDetails {
+        address _strategy;
+        address _tokenIn;
+        address _tokenOut;
+        uint256 _amount;
+        uint256 _minAmountOut;
+    }
+
+    // Sync execution
+    function execute(
+        SyncTradeExecutionDetails calldata _tradeExecutionDetails,
+        bytes calldata _data
+    ) external returns (uint256 _receivedAmount);
+
+    // Async execution
+    function execute(
+        AsyncTradeExecutionDetails calldata _tradeExecutionDetails,
+        address _swapper,
+        bytes calldata _data
+    ) external returns (uint256 _receivedAmount);
 }

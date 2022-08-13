@@ -59,11 +59,10 @@ contract StrategyFixture is ExtendedTest {
         _setTokenAddrs();
 
         // Choose a token from the tokenAddrs mapping, see _setTokenAddrs for options
-        string memory token = "DAI";
+        string memory token = "USDC";
         weth = IERC20(tokenAddrs["WETH"]);
         want = IERC20(tokenAddrs[token]);
-        cToken = IERC20(cTokenAddrs["DAI"]);
-
+        cToken = IERC20(cTokenAddrs[token]);
 
         (address _vault, address _strategy) = deployVaultAndStrategy(
             address(want),
@@ -80,13 +79,14 @@ contract StrategyFixture is ExtendedTest {
         vault = IVault(_vault);
         strategy = Strategy(_strategy);
 
-        minFuzzAmt = 10**vault.decimals() / 10;
+        uint256 decimals = vault.decimals();
+        minFuzzAmt = 10**decimals;
         maxFuzzAmt =
             uint256(maxDollarNotional / tokenPrices[token]) *
-            10**vault.decimals();
+            10**decimals;
         bigAmount =
             uint256(bigDollarNotional / tokenPrices[token]) *
-            10**vault.decimals();
+            10**decimals;
 
         // add more labels to make your traces readable
         vm.label(address(vault), "Vault");
@@ -197,6 +197,7 @@ contract StrategyFixture is ExtendedTest {
         tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
         cTokenAddrs["DAI"] = 0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643;
         cTokenAddrs["USDT"] = 0xf650C3d88D12dB855b8bf7D11Be6C55A4e07dCC9;
+        cTokenAddrs["USDC"] = 0x39AA39c021dfbaE8faC545936693aC917d5E7563;
     }
 
     function _setTokenPrices() internal {
