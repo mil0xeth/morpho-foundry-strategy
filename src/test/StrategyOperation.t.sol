@@ -127,8 +127,13 @@ contract StrategyOperationsTest is StrategyFixture {
         vm.assume(compAmount > strategy.minCompToClaimOrSell());
         deal(address(strategy.COMP()), address(strategy), compAmount);
 
-        // TODO: trigger tradefactory to swap reward tokens to want tokens.
+        // Harvest 2: Realize profit
+        skip(1);
+        vm.prank(strategist);
+        strategy.harvest();
+        skip(6 hours);
 
+        // TODO: trigger tradefactory to swap reward tokens to want tokens.
         // try to trigger the async trade
         // ITradeFactory.AsyncTradeExecutionDetails memory ated = ITradeFactory.AsyncTradeExecutionDetails(
         //     address(strategy),
@@ -144,18 +149,14 @@ contract StrategyOperationsTest is StrategyFixture {
         // tradeFactory.execute(ated, 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F, "");
         // vm.stopPrank();
 
-        // Harvest 2: Realize profit
-        skip(1);
-        vm.prank(strategist);
-        strategy.harvest();
-        skip(6 hours);
-
+        // Validate profit
         uint256 profit = want.balanceOf(address(vault));
-        emit log_named_uint("profit: ", profit);
-        emit log_named_uint("strategy: ", want.balanceOf(address(strategy)));
-        emit log_named_uint("amount: ", _amount);
-        emit log_named_uint("price per share old: ", beforePps);
-        emit log_named_uint("price per share new: ", vault.pricePerShare());
+        // TODO: cleanup event after passing test
+        // emit log_named_uint("profit: ", profit);
+        // emit log_named_uint("strategy: ", want.balanceOf(address(strategy)));
+        // emit log_named_uint("amount: ", _amount);
+        // emit log_named_uint("price per share old: ", beforePps);
+        // emit log_named_uint("price per share new: ", vault.pricePerShare());
         assertGt(want.balanceOf(address(strategy)) + profit, _amount);
         assertGt(vault.pricePerShare(), beforePps);
     }
