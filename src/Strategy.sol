@@ -200,8 +200,11 @@ contract Strategy is BaseStrategy {
 
     /**
      * @notice
-     *  Returns the current supply of want token in Moprho Market.
-     * @return _balance of `want` token supplied to Morpho Market
+     *  Computes and returns the total amount of underlying ERC20 token a given user has supplied through Morpho
+     *  on a given market, taking into account interests accrued.
+     * @dev
+     *  The value is in `want` precision, decimals so there is no need to convert this value if calculating with `want`.
+     * @return _balance of `want` token supplied to Morpho in `want` precision
      */
     function balanceOfcToken() public view returns (uint256 _balance) {
         (, , _balance) = LENS.getCurrentSupplyBalanceInOf(
@@ -246,15 +249,17 @@ contract Strategy is BaseStrategy {
     }
 
     function sellComp() internal {
-        uint256 compBalance = IERC20(COMP).balanceOf(address(this));
-        if (compBalance > minCompToClaimOrSell) {
-            currentV2Router.swapExactTokensForTokens(
-                compBalance,
-                0,
-                getTokenOutPathV2(COMP, address(want)),
-                address(this),
-                block.timestamp
-            );
+        if (tradeFactory == address(0)) {
+            uint256 compBalance = IERC20(COMP).balanceOf(address(this));
+            if (compBalance > minCompToClaimOrSell) {
+                currentV2Router.swapExactTokensForTokens(
+                    compBalance,
+                    0,
+                    getTokenOutPathV2(COMP, address(want)),
+                    address(this),
+                    block.timestamp
+                );
+            }
         }
     }
 
