@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {StrategyFixture} from "./utils/StrategyFixture.sol";
 import {StrategyParams} from "../interfaces/Vault.sol";
+import {ITradeFactory} from "../interfaces/ySwap/ITradeFactory.sol";
 
 contract StrategyOperationsTest is StrategyFixture {
     // setup is run on before each test
@@ -127,36 +128,69 @@ contract StrategyOperationsTest is StrategyFixture {
         vm.assume(compAmount > strategy.minCompToClaimOrSell());
         deal(address(strategy.COMP()), address(strategy), compAmount);
 
+        // use tradefactory to execute swap reward tokens to want tokens.
+        ITradeFactory.AsyncTradeExecutionDetails memory ated = ITradeFactory.AsyncTradeExecutionDetails(
+            address(strategy),
+            address(strategy.COMP()),
+            address(want),
+            compAmount,
+            1
+        );
+        address[] memory path = new address[](3);
+        path[0] = strategy.COMP();
+        path[1] = address(weth);
+        path[2] = address(want);
+        vm.prank(yMechSafe);
+        tradeFactory.execute(ated, 0x408Ec47533aEF482DC8fA568c36EC0De00593f44, abi.encode(path));
+
         // Harvest 2: Realize profit
         skip(1);
         vm.prank(strategist);
         strategy.harvest();
         skip(6 hours);
 
-        // TODO: trigger tradefactory to swap reward tokens to want tokens.
-        // try to trigger the async trade
-        // ITradeFactory.AsyncTradeExecutionDetails memory ated = ITradeFactory.AsyncTradeExecutionDetails(
-        //     address(strategy),
-        //     address(strategy.COMP()),
-        //     address(want),
-        //     compAmount,
-        //     1
-        // );
-        // address[] memory path = new address[](3);
-        // path[0] = strategy.COMP();
-        // path[1] = address(weth);
-        // path[2] = address(want);
-        // tradeFactory.execute(ated, 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F, "");
-        // vm.stopPrank();
+        // Validate profit
+        uint256 profit = want.balanceOf(address(vault));
+        assertGt(vault.pricePerShare(), beforePps);
+    }
+
+    function testProfitableHarvestWithoutTradeFactory(uint256 _amount) public {
+        vm.assume(_amount > minFuzzAmt && _amount < maxFuzzAmt);
+        deal(address(want), user, _amount);
+
+        // disable trade factory
+        vm.prank(strategist);
+        strategy.removeTradeFactoryPermissions();
+
+        // Deposit to the vault
+        vm.prank(user);
+        want.approve(address(vault), _amount);
+        vm.prank(user);
+        vault.deposit(_amount);
+        assertRelApproxEq(want.balanceOf(address(vault)), _amount, DELTA);
+
+        uint256 beforePps = vault.pricePerShare();
+
+        // Harvest 1: Send funds through the strategy
+        skip(1);
+        vm.prank(strategist);
+        strategy.harvest();
+        assertRelApproxEq(strategy.estimatedTotalAssets(), _amount, DELTA);
+
+        // Add some code before harvest #2 to simulate earning yield
+        // Strategy earned some reward tokens, param amount is adjusted to comp token decimals
+        uint256 compAmount = _amount * 10**(18 - vault.decimals());
+        vm.assume(compAmount > strategy.minCompToClaimOrSell());
+        deal(address(strategy.COMP()), address(strategy), compAmount);
+
+        // Harvest 2: Realize profit
+        skip(1);
+        vm.prank(strategist);
+        strategy.harvest();
+        skip(6 hours);
 
         // Validate profit
         uint256 profit = want.balanceOf(address(vault));
-        // TODO: cleanup event after passing test
-        // emit log_named_uint("profit: ", profit);
-        // emit log_named_uint("strategy: ", want.balanceOf(address(strategy)));
-        // emit log_named_uint("amount: ", _amount);
-        // emit log_named_uint("price per share old: ", beforePps);
-        // emit log_named_uint("price per share new: ", vault.pricePerShare());
         assertGt(want.balanceOf(address(strategy)) + profit, _amount);
         assertGt(vault.pricePerShare(), beforePps);
     }
