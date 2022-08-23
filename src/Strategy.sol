@@ -84,9 +84,8 @@ contract Strategy is BaseStrategy {
             ? totalAssetsAfterProfit - totalDebt
             : 0;
 
-        if (_debtOutstanding > 0) {
-            (_debtPayment, _loss) = liquidatePosition(_debtOutstanding);
-        }
+        (_debtPayment, _loss) = liquidatePosition(_debtOutstanding);
+        _debtPayment = Math.min(_debtPayment, _debtOutstanding);
         // Net profit and loss calculation
         if (_loss > _profit) {
             _loss -= _profit;
@@ -122,9 +121,13 @@ contract Strategy is BaseStrategy {
                 balanceOfcToken()
             );
             MORPHO.withdraw(cTokenAdd, _liquidatedAmount);
-            unchecked {
-                _loss = _amountNeeded - _liquidatedAmount;
-            }
+            _liquidatedAmount = Math.min(
+                want.balanceOf(address(this)),
+                _amountNeeded
+            );
+            _loss = _amountNeeded > _liquidatedAmount
+                ? _amountNeeded - _liquidatedAmount
+                : 0;
         } else {
             _liquidatedAmount = _amountNeeded;
         }
@@ -142,7 +145,9 @@ contract Strategy is BaseStrategy {
     function prepareMigration(address _newStrategy) internal override {
         liquidateAllPositions();
         claimComp();
-        sellComp();
+        // sellComp();
+        IERC20 comp = IERC20(COMP);
+        comp.transfer(_newStrategy, comp.balanceOf(address(this)));
     }
 
     function protectedTokens()
